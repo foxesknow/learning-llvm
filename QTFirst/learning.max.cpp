@@ -55,7 +55,7 @@ void Learning::TestMax()
 	std::vector<GenericValue> args(2);
 	args[0].IntVal=APInt(32, 7);
 	args[1].IntVal=APInt(32, 5);
-	GenericValue result = engine->runFunction(max,args);
+	GenericValue result=engine->runFunction(max,args);
 
 	// import result of execution
 	outs() << "Result: " << result.IntVal << "\n";
