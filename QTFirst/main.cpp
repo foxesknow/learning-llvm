@@ -3,7 +3,7 @@
 int main(int argc, char **argv)
 {
 	Learning learning;
-	learning.TestAddIR();
+	learning.TestMax();
 
 	return 0;
 }

@@ -2,6 +2,8 @@
 
 #include "learning.h"
 
+using namespace llvm;
+
 Learning::Learning()
 {
 	llvm::InitializeNativeTarget();

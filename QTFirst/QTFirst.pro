@@ -12,7 +12,8 @@ SOURCES += main.cpp \
     learning.cpp \
     learning.fib.cpp \
     learning.add.cpp \
-    learning.addir.cpp
+    learning.addir.cpp \
+    learning.max.cpp
 
 HEADERS += \
     learning.h

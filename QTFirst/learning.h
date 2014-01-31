@@ -13,7 +13,6 @@
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Support/TargetSelect.h"
 #include "llvm/IR/IRBuilder.h"
-using namespace llvm;
 
 class Learning
 {
@@ -26,13 +25,16 @@ public:
 	Learning();
 
 	void TestFib();
-	Function *CreateFib(llvm::Module &module, llvm::LLVMContext &Context);
+	llvm::Function *CreateFib(llvm::Module &module, llvm::LLVMContext &Context);
 
 	void TestAdd();
-	Function *CreateAdd(llvm::Module &module, llvm::LLVMContext &Context);
+	llvm::Function *CreateAdd(llvm::Module &module, llvm::LLVMContext &Context);
 
 	void TestAddIR();
-	Function *CreateAddIR(llvm::Module &module, llvm::LLVMContext &Context);
+	llvm::Function *CreateAddIR(llvm::Module &module, llvm::LLVMContext &Context);
+
+	void TestMax();
+	llvm::Function *CreateMax(llvm::Module &module, llvm::LLVMContext &context);
 };
 
 #endif // LEARNING_H
