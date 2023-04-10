@@ -56,7 +56,7 @@ namespace CSharpDemo
         public BlockExpression While(Func<LLVMBuilderRef, LLVMValueRef> predicate, LoopBodyBuilder loopBuilder)
         {
             var whileLoop = this.Function.MakeBlock("whileLoop");
-            var whileBody = whileLoop.Function.MakeBlock("whileBody");
+            var whileBody = this.Function.MakeBlock("whileBody");
             var breakBlock = this.Function.MakeBlock("breakBlock");
 
             using(var builder = MakeBuilder())

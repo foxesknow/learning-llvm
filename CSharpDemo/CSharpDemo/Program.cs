@@ -16,6 +16,8 @@ namespace CSharpDemo
 
         static void Main(string[] args)
         {
+            // https://llvm.org/docs/LangRef.html
+
             Add_Expression();
             Console.WriteLine("Hello, World!");
         }
@@ -137,20 +139,30 @@ namespace CSharpDemo
                     var one = LLVMValueRef.CreateConstInt(LLVMTypeRef.Int32, 1);
                     var two = LLVMValueRef.CreateConstInt(LLVMTypeRef.Int32, 2);
 
+                    var localRepetitions = entryBuilder.BuildAlloca(LLVMTypeRef.Int32, "repetitions");
+                    entryBuilder.BuildStore(repetitions, localRepetitions);
+                    entryBuilder.BuildStore(entryBuilder.BuildAdd(entryBuilder.BuildLoad2(LLVMTypeRef.Int32, localRepetitions), one), localRepetitions);
+
                     var value = entryBuilder.BuildAlloca(LLVMTypeRef.Int32, "value");
-                    entryBuilder.BuildStore(value, zero);
-                    
+                    entryBuilder.BuildStore(zero, value);
+
                     var counter = entryBuilder.BuildAlloca(LLVMTypeRef.Int32, "counter");
-                    entryBuilder.BuildStore(counter, zero);
+                    entryBuilder.BuildStore(zero, counter);
                     
                     var continuation = entry.While
                     (
-                        builder => builder.BuildICmp(LLVMIntPredicate.LLVMIntSLT, counter, repetitions, "compare"),
+                        builder => builder.BuildICmp
+                        (
+                            LLVMIntPredicate.LLVMIntSLT, 
+                            builder.BuildLoad2(LLVMTypeRef.Int32, counter), 
+                            builder.BuildLoad2(LLVMTypeRef.Int32, localRepetitions), 
+                            "compare"
+                        ),
                         (body, @break, @continue) =>
                         {
                             using var builder = body.MakeBuilder();
-                            builder.BuildStore(value, builder.BuildAdd(value, two));
-                            builder.BuildStore(counter, builder.BuildAdd(counter, one));
+                            builder.BuildStore(builder.BuildAdd(builder.BuildLoad2(LLVMTypeRef.Int32, value), two), value);
+                            builder.BuildStore(builder.BuildAdd(builder.BuildLoad2(LLVMTypeRef.Int32, counter), one), counter);
                         }
                     );
 
