@@ -13,7 +13,7 @@ namespace CSharpDemo
 
         static void Main(string[] args)
         {
-            MakeMax();
+            MakeMax_Expression();
             Console.WriteLine("Hello, World!");
         }
 
@@ -67,6 +67,78 @@ namespace CSharpDemo
             var result = max(10, 12);
 
             Console.WriteLine(result);
+        }
+
+        static void MakeMax_Expression()
+        {
+            using(var module = new ModuleExpression("Max"))
+            {
+                var function = module.AddFunction("Max", LLVMTypeRef.Int32, LLVMTypeRef.Int32, LLVMTypeRef.Int32);
+                var x = function.Parameters[0];
+                var y = function.Parameters[1];
+
+                var entry = function.MakeBlock("entry");
+                var ifTrue = function.MakeBlock("ifTrue");
+                var ifFalse = function.MakeBlock("ifFalse");
+                var ret = function.MakeBlock("ret");
+
+                using(var entryBuilder = entry.MakeBuilder())
+                {
+                    var value = entryBuilder.BuildAlloca(LLVMTypeRef.Int32, "value");
+
+                    var continuation = entry.IfThenElse
+                    (
+                        ifTrue: (block, exit) =>
+                        {
+                            using var builder = block.MakeBuilder();
+                            builder.BuildStore(x, value);
+                            builder.BuildBr(ret.Raw);
+                        },
+                        ifFalse: (block, exit) =>
+                        {
+                            using var builder = block.MakeBuilder();
+                            builder.BuildStore(y, value);
+                            builder.BuildBr(ret.Raw);
+                        }
+                    );
+                }
+
+                using(var entryBuilder = entry.MakeBuilder())
+                {
+                    var value = entryBuilder.BuildAlloca(LLVMTypeRef.Int32, "value");
+                    var compare = entryBuilder.BuildICmp(LLVMIntPredicate.LLVMIntSGT, x, y, "compare");
+                    entryBuilder.BuildCondBr(compare, ifTrue.Raw, ifFalse.Raw);
+
+                    using(var builder = ifTrue.MakeBuilder())
+                    {
+                        builder.BuildStore(x, value);
+                        builder.BuildBr(ret.Raw);
+                    }
+
+                    using(var builder = ifFalse.MakeBuilder())
+                    {
+                        builder.BuildStore(y, value);
+                        builder.BuildBr(ret.Raw);
+                    }
+
+                    using(var builder = ret.MakeBuilder())
+                    {
+                        var load = builder.BuildLoad2(LLVMTypeRef.Int32, value);
+                        builder.BuildRet(load);
+                    }
+                }
+
+                Console.WriteLine(function);
+
+                _ = LLVM.InitializeNativeTarget();
+                _ = LLVM.InitializeNativeAsmParser();
+                _ = LLVM.InitializeNativeAsmPrinter();
+                var engine = module.Raw.CreateMCJITCompiler();
+                var max = engine.GetPointerToGlobal<BinaryInt32Operation>(function.Raw);
+                var result = max(10, 12);
+
+                Console.WriteLine(result);
+            }
         }
     }
 }
