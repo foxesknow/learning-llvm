@@ -7,5 +7,5 @@ using System.Threading.Tasks;
 
 namespace CSharpDemo
 {
-    public delegate Expression LoopBodyBuilder(BlockExpression @break, BlockExpression @continue);  
+    public delegate void LoopBodyBuilder(BlockExpression body, BlockExpression @break, BlockExpression @continue);  
 }

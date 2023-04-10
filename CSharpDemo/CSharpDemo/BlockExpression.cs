@@ -45,12 +45,39 @@ namespace CSharpDemo
             ifTrue(ifTrueBlock, continuation);
             ifFalse(ifFalseBlock, continuation);
 
-            using(var builder = MakeBuilder())
+            using(var builder = this.MakeBuilder())
             {
                 builder.BuildCondBr(predicate, ifTrueBlock.Raw, ifFalseBlock.Raw);
             }
 
             return continuation;
+        }
+
+        public BlockExpression While(Func<LLVMBuilderRef, LLVMValueRef> predicate, LoopBodyBuilder loopBuilder)
+        {
+            var whileLoop = this.Function.MakeBlock("whileLoop");
+            var whileBody = this.Function.MakeBlock("whileBody");
+            var breakBlock = this.Function.MakeBlock("breakBlock");
+
+            loopBuilder(whileBody, breakBlock, whileLoop);
+
+            using(var builder = MakeBuilder())
+            {
+                builder.BuildBr(whileLoop.Raw);
+
+                using(var whileLoopBuilder = whileLoop.MakeBuilder())
+                {
+                    whileLoopBuilder.BuildCondBr(predicate(whileLoopBuilder), whileBody.Raw, breakBlock.Raw);
+                    loopBuilder(whileBody, breakBlock, whileLoop);
+
+                    using(var retestBuilder = whileBody.MakeBuilder())
+                    {
+                        retestBuilder.BuildBr(whileLoop.Raw);
+                    }
+                }
+            }
+
+            return breakBlock;
         }
     }
 }

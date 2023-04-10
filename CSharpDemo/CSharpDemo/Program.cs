@@ -10,10 +10,13 @@ namespace CSharpDemo
     {
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
         private delegate int BinaryInt32Operation(int op1, int op2);
+        
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+        private delegate int UnaryInt32Operation(int op1);
 
         static void Main(string[] args)
         {
-            MakeMax_Expression();
+            Add_Expression();
             Console.WriteLine("Hello, World!");
         }
 
@@ -78,50 +81,29 @@ namespace CSharpDemo
                 var y = function.Parameters[1];
 
                 var entry = function.MakeBlock("entry");
-                var ifTrue = function.MakeBlock("ifTrue");
-                var ifFalse = function.MakeBlock("ifFalse");
-                var ret = function.MakeBlock("ret");
-
                 using(var entryBuilder = entry.MakeBuilder())
                 {
                     var value = entryBuilder.BuildAlloca(LLVMTypeRef.Int32, "value");
+                    var predicate = entryBuilder.BuildICmp(LLVMIntPredicate.LLVMIntSGT, x, y, "compare");
 
                     var continuation = entry.IfThenElse
                     (
+                        predicate,
                         ifTrue: (block, exit) =>
                         {
                             using var builder = block.MakeBuilder();
                             builder.BuildStore(x, value);
-                            builder.BuildBr(ret.Raw);
+                            builder.BuildBr(exit.Raw);
                         },
                         ifFalse: (block, exit) =>
                         {
                             using var builder = block.MakeBuilder();
                             builder.BuildStore(y, value);
-                            builder.BuildBr(ret.Raw);
+                            builder.BuildBr(exit.Raw);
                         }
                     );
-                }
 
-                using(var entryBuilder = entry.MakeBuilder())
-                {
-                    var value = entryBuilder.BuildAlloca(LLVMTypeRef.Int32, "value");
-                    var compare = entryBuilder.BuildICmp(LLVMIntPredicate.LLVMIntSGT, x, y, "compare");
-                    entryBuilder.BuildCondBr(compare, ifTrue.Raw, ifFalse.Raw);
-
-                    using(var builder = ifTrue.MakeBuilder())
-                    {
-                        builder.BuildStore(x, value);
-                        builder.BuildBr(ret.Raw);
-                    }
-
-                    using(var builder = ifFalse.MakeBuilder())
-                    {
-                        builder.BuildStore(y, value);
-                        builder.BuildBr(ret.Raw);
-                    }
-
-                    using(var builder = ret.MakeBuilder())
+                    using(var builder = continuation.MakeBuilder())
                     {
                         var load = builder.BuildLoad2(LLVMTypeRef.Int32, value);
                         builder.BuildRet(load);
@@ -136,6 +118,57 @@ namespace CSharpDemo
                 var engine = module.Raw.CreateMCJITCompiler();
                 var max = engine.GetPointerToGlobal<BinaryInt32Operation>(function.Raw);
                 var result = max(10, 12);
+
+                Console.WriteLine(result);
+            }
+        }
+
+        static void Add_Expression()
+        {
+            using(var module = new ModuleExpression("Adder"))
+            {
+                var function = module.AddFunction("Adder", LLVMTypeRef.Int32, LLVMTypeRef.Int32);
+                var repetitions = function.Parameters[0];
+
+                var entry = function.MakeBlock("entry");
+                using(var entryBuilder = entry.MakeBuilder())
+                {
+                    var zero = LLVMValueRef.CreateConstInt(LLVMTypeRef.Int32, 0);
+                    var one = LLVMValueRef.CreateConstInt(LLVMTypeRef.Int32, 1);
+                    var two = LLVMValueRef.CreateConstInt(LLVMTypeRef.Int32, 2);
+
+                    var value = entryBuilder.BuildAlloca(LLVMTypeRef.Int32, "value");
+                    entryBuilder.BuildStore(value, zero);
+                    
+                    var counter = entryBuilder.BuildAlloca(LLVMTypeRef.Int32, "counter");
+                    entryBuilder.BuildStore(counter, zero);
+                    
+                    var continuation = entry.While
+                    (
+                        builder => builder.BuildICmp(LLVMIntPredicate.LLVMIntSLT, counter, repetitions, "compare"),
+                        (body, @break, @continue) =>
+                        {
+                            using var builder = body.MakeBuilder();
+                            builder.BuildStore(value, builder.BuildAdd(value, two));
+                            builder.BuildStore(counter, builder.BuildAdd(counter, one));
+                        }
+                    );
+
+                    using(var builder = continuation.MakeBuilder())
+                    {
+                        var load = builder.BuildLoad2(LLVMTypeRef.Int32, value);
+                        builder.BuildRet(load);
+                    }
+                }
+
+                Console.WriteLine(function);
+
+                _ = LLVM.InitializeNativeTarget();
+                _ = LLVM.InitializeNativeAsmParser();
+                _ = LLVM.InitializeNativeAsmPrinter();
+                var engine = module.Raw.CreateMCJITCompiler();
+                var adder = engine.GetPointerToGlobal<UnaryInt32Operation>(function.Raw);
+                var result = adder(10);
 
                 Console.WriteLine(result);
             }
