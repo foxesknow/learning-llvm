@@ -55,24 +55,27 @@ namespace CSharpDemo
 
         public BlockExpression While(Func<LLVMBuilderRef, LLVMValueRef> predicate, LoopBodyBuilder loopBuilder)
         {
-            var whileLoop = this.Function.MakeBlock("whileLoop");
+            var @while = this.Function.MakeBlock("whileLoop");
             var whileBody = this.Function.MakeBlock("whileBody");
             var breakBlock = this.Function.MakeBlock("breakBlock");
 
             using(var builder = MakeBuilder())
             {
-                builder.BuildBr(whileLoop.Raw);
+                // We need to just into the while, as it's a different block
+                builder.BuildBr(@while.Raw);
 
-                using(var whileLoopBuilder = whileLoop.MakeBuilder())
+                using(var whileLoopBuilder = @while.MakeBuilder())
                 {
-                    whileLoopBuilder.BuildCondBr(predicate(whileLoopBuilder), whileBody.Raw, breakBlock.Raw);
-                    loopBuilder(whileBody, breakBlock, whileLoop);
-
-                    using(var retestBuilder = whileBody.MakeBuilder())
-                    {
-                        retestBuilder.BuildBr(whileLoop.Raw);
-                    }
+                    var condition = predicate(whileLoopBuilder);
+                    whileLoopBuilder.BuildCondBr(condition, whileBody.Raw, breakBlock.Raw);
+                    loopBuilder(whileBody, breakBlock, @while);
                 }
+            }
+
+            // We need to make the while body jump to the condition
+            using(var retestBuilder = whileBody.MakeBuilder())
+            {
+                retestBuilder.BuildBr(@while.Raw);
             }
 
             return breakBlock;
