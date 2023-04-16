@@ -28,12 +28,12 @@ namespace CSharpDemo
             get{return m_Block;}
         }
 
-        public LLVMBuilderRef MakeBuilder()
+        public Builder MakeBuilder()
         {
             var builder = this.Module.Raw.Context.CreateBuilder();
             builder.PositionAtEnd(m_Block);
 
-            return builder;
+            return new(builder);
         }
 
         public BlockExpression IfThenElse(LLVMValueRef predicate, ExitBodyBuilder ifTrue, ExitBodyBuilder ifFalse)
@@ -47,13 +47,13 @@ namespace CSharpDemo
 
             using(var builder = this.MakeBuilder())
             {
-                builder.BuildCondBr(predicate, ifTrueBlock.Raw, ifFalseBlock.Raw);
+                builder.IfThenElse(predicate, ifTrueBlock.Raw, ifFalseBlock.Raw);
             }
 
             return continuation;
         }
 
-        public BlockExpression While(Func<LLVMBuilderRef, LLVMValueRef> predicate, LoopBodyBuilder loopBuilder)
+        public BlockExpression While(Func<Builder, LLVMValueRef> predicate, LoopBodyBuilder loopBuilder)
         {
             var @while = this.Function.MakeBlock("whileLoop");
             var whileBody = this.Function.MakeBlock("whileBody");
@@ -62,12 +62,12 @@ namespace CSharpDemo
             using(var builder = MakeBuilder())
             {
                 // We need to just into the while, as it's a different block
-                builder.BuildBr(@while.Raw);
+                builder.Branch(@while.Raw);
 
                 using(var whileLoopBuilder = @while.MakeBuilder())
                 {
                     var condition = predicate(whileLoopBuilder);
-                    whileLoopBuilder.BuildCondBr(condition, whileBody.Raw, breakBlock.Raw);
+                    whileLoopBuilder.IfThenElse(condition, whileBody.Raw, breakBlock.Raw);
                     loopBuilder(whileBody, breakBlock, @while);
                 }
             }
@@ -75,7 +75,7 @@ namespace CSharpDemo
             // We need to make the while body jump to the condition
             using(var retestBuilder = whileBody.MakeBuilder())
             {
-                retestBuilder.BuildBr(@while.Raw);
+                retestBuilder.Branch(@while.Raw);
             }
 
             return breakBlock;

@@ -36,6 +36,18 @@ namespace CSharpDemo
             return new(this.Module, this, block);
         }
 
+        public void Build(Action<BlockExpression> builder)
+        {
+            var block = MakeBlock();
+            builder(block);
+        }
+
+        public void Build(string name, Action<BlockExpression> builder)
+        {
+            var block = MakeBlock(name);
+            builder(block);
+        }
+
         public override string ToString()
         {
             return m_Function.ToString();

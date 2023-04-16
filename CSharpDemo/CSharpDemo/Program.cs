@@ -18,7 +18,7 @@ namespace CSharpDemo
         {
             // https://llvm.org/docs/LangRef.html
 
-            Add_Expression();
+            Add_Expression_2();
             Console.WriteLine("Hello, World!");
         }
 
@@ -85,8 +85,8 @@ namespace CSharpDemo
                 var entry = function.MakeBlock("entry");
                 using(var entryBuilder = entry.MakeBuilder())
                 {
-                    var value = entryBuilder.BuildAlloca(LLVMTypeRef.Int32, "value");
-                    var predicate = entryBuilder.BuildICmp(LLVMIntPredicate.LLVMIntSGT, x, y, "compare");
+                    var value = entryBuilder.AllocateStackVariable(LLVMTypeRef.Int32, "value");
+                    var predicate = entryBuilder.Compare(LLVMIntPredicate.LLVMIntSGT, x, y, "compare");
 
                     var continuation = entry.IfThenElse
                     (
@@ -94,21 +94,20 @@ namespace CSharpDemo
                         ifTrue: (block, exit) =>
                         {
                             using var builder = block.MakeBuilder();
-                            builder.BuildStore(x, value);
-                            builder.BuildBr(exit.Raw);
+                            builder.Store(value, x);
+                            builder.Branch(exit.Raw);
                         },
                         ifFalse: (block, exit) =>
                         {
                             using var builder = block.MakeBuilder();
-                            builder.BuildStore(y, value);
-                            builder.BuildBr(exit.Raw);
+                            builder.Store(value, y);
+                            builder.Branch(exit.Raw);
                         }
                     );
 
                     using(var builder = continuation.MakeBuilder())
                     {
-                        var load = builder.BuildLoad2(LLVMTypeRef.Int32, value);
-                        builder.BuildRet(load);
+                        builder.Return(builder.Load(LLVMTypeRef.Int32, value));
                     }
                 }
 
@@ -133,45 +132,106 @@ namespace CSharpDemo
                 var repetitions = function.Parameters[0];
 
                 var entry = function.MakeBlock("entry");
-                using(var entryBuilder = entry.MakeBuilder())
+                using(var b = entry.MakeBuilder())
                 {
                     var zero = LLVMValueRef.CreateConstInt(LLVMTypeRef.Int32, 0);
                     var one = LLVMValueRef.CreateConstInt(LLVMTypeRef.Int32, 1);
                     var two = LLVMValueRef.CreateConstInt(LLVMTypeRef.Int32, 2);
 
-                    var localRepetitions = entryBuilder.BuildAlloca(LLVMTypeRef.Int32, "repetitions");
-                    entryBuilder.BuildStore(repetitions, localRepetitions);
-                    entryBuilder.BuildStore(entryBuilder.BuildAdd(entryBuilder.BuildLoad2(LLVMTypeRef.Int32, localRepetitions), one), localRepetitions);
+                    var localRepetitions = b.AllocateStackVariable(LLVMTypeRef.Int32, "repetitions");
+                    b.Store(localRepetitions, repetitions);
+                    b.Store(localRepetitions, b.Add(b.Load(LLVMTypeRef.Int32, localRepetitions), one));
 
-                    var value = entryBuilder.BuildAlloca(LLVMTypeRef.Int32, "value");
-                    entryBuilder.BuildStore(zero, value);
+                    var value = b.AllocateStackVariable(LLVMTypeRef.Int32, "value");
+                    b.Store(value, zero);
 
-                    var counter = entryBuilder.BuildAlloca(LLVMTypeRef.Int32, "counter");
-                    entryBuilder.BuildStore(zero, counter);
+                    var counter = b.AllocateStackVariable(LLVMTypeRef.Int32, "counter");
+                    b.Store(counter, zero);
                     
                     var continuation = entry.While
                     (
-                        builder => builder.BuildICmp
+                        builder => builder.Compare
                         (
                             LLVMIntPredicate.LLVMIntSLT, 
-                            builder.BuildLoad2(LLVMTypeRef.Int32, counter), 
-                            builder.BuildLoad2(LLVMTypeRef.Int32, localRepetitions), 
+                            builder.Load(LLVMTypeRef.Int32, counter), 
+                            builder.Load(LLVMTypeRef.Int32, localRepetitions), 
                             "compare"
                         ),
                         (body, @break, @continue) =>
                         {
                             using var builder = body.MakeBuilder();
-                            builder.BuildStore(builder.BuildAdd(builder.BuildLoad2(LLVMTypeRef.Int32, value), two), value);
-                            builder.BuildStore(builder.BuildAdd(builder.BuildLoad2(LLVMTypeRef.Int32, counter), one), counter);
+                            builder.Store(value, builder.Add(builder.Load(LLVMTypeRef.Int32, value), two));
+                            builder.Store(counter, builder.Add(builder.Load(LLVMTypeRef.Int32, counter), one));
                         }
                     );
 
                     using(var builder = continuation.MakeBuilder())
                     {
-                        var load = builder.BuildLoad2(LLVMTypeRef.Int32, value);
-                        builder.BuildRet(load);
+                        var load = builder.Load(LLVMTypeRef.Int32, value);
+                        builder.Return(load);
                     }
                 }
+
+                Console.WriteLine(function);
+
+                _ = LLVM.InitializeNativeTarget();
+                _ = LLVM.InitializeNativeAsmParser();
+                _ = LLVM.InitializeNativeAsmPrinter();
+                var engine = module.Raw.CreateMCJITCompiler();
+                var adder = engine.GetPointerToGlobal<UnaryInt32Operation>(function.Raw);
+                var result = adder(10);
+
+                Console.WriteLine(result);
+            }
+        }
+
+        static void Add_Expression_2()
+        {
+            using(var module = new ModuleExpression("Adder"))
+            {
+                var function = module.AddFunction("Adder", LLVMTypeRef.Int32, LLVMTypeRef.Int32);
+                var repetitions = function.Parameters[0];
+
+                var zero = LLVMValueRef.CreateConstInt(LLVMTypeRef.Int32, 0);
+                var one = LLVMValueRef.CreateConstInt(LLVMTypeRef.Int32, 1);
+                var two = LLVMValueRef.CreateConstInt(LLVMTypeRef.Int32, 2);
+
+                function.Build("entry", block =>
+                {
+                    using var b = block.MakeBuilder();
+                    var localRepetitions = b.AllocateStackVariable(LLVMTypeRef.Int32, "repetitions");
+                    b.Store(localRepetitions, repetitions);
+                    b.Store(localRepetitions, b.Add(b.Load(LLVMTypeRef.Int32, localRepetitions), one));
+
+                    var value = b.AllocateStackVariable(LLVMTypeRef.Int32, "value");
+                    b.Store(value, zero);
+
+                    var counter = b.AllocateStackVariable(LLVMTypeRef.Int32, "counter");
+                    b.Store(counter, zero);
+
+                    var continuation = block.While
+                    (
+                        builder => builder.Compare
+                        (
+                            LLVMIntPredicate.LLVMIntSLT, 
+                            builder.Load(LLVMTypeRef.Int32, counter), 
+                            builder.Load(LLVMTypeRef.Int32, localRepetitions), 
+                            "compare"
+                        ),
+                        (body, @break, @continue) =>
+                        {
+                            using var builder = body.MakeBuilder();
+                            builder.Store(value, builder.Add(builder.Load(LLVMTypeRef.Int32, value), two));
+                            builder.Store(counter, builder.Add(builder.Load(LLVMTypeRef.Int32, counter), one));
+                        }
+                    );
+
+                    using(var builder = continuation.MakeBuilder())
+                    {
+                        var load = builder.Load(LLVMTypeRef.Int32, value);
+                        builder.Return(load);
+                    }
+                });
 
                 Console.WriteLine(function);
 
